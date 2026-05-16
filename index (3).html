@@ -1,0 +1,1296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WPBL · Player Map &amp; Stats</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=Open+Sans:wght@300;400;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root {
+      --header-bg:   #2d3035;
+      --header-text: #ead2a5;
+      --page-bg:     #f9f9f9;
+      --card-bg:     #ffffff;
+      --border:      #e0e0e0;
+      --text:        #2d3035;
+      --muted:       #767676;
+      --accent:      #c8a44a;
+      --radius:      6px;
+      --header-h:    60px;
+      --boston:      #268040;
+      --la:          #475da9;
+      --ny:          #299598;
+      --sf:          #8152a0;
+    }
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Open Sans', sans-serif;
+      background: var(--page-bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    a { color: inherit; text-decoration: none; }
+    img { display: block; }
+    button { cursor: pointer; font-family: inherit; }
+
+    /* ── HEADER ─────────────────────────────────────────────── */
+    header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 900;
+      height: var(--header-h);
+      background: var(--header-bg);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      gap: 16px;
+    }
+
+    .logo-link {
+      display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    }
+    .logo-img {
+      height: 32px; width: auto;
+      filter: brightness(0) invert(1); opacity: 0.9;
+    }
+    .logo-wordmark { line-height: 1; }
+    .logo-main {
+      font-family: 'Oswald', sans-serif; font-weight: 600;
+      font-size: 14px; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--header-text);
+      display: block;
+    }
+    .logo-sub {
+      font-size: 9px; letter-spacing: 1.5px;
+      text-transform: uppercase; color: rgba(234,210,165,0.5);
+      font-weight: 300; margin-top: 3px; display: block;
+    }
+
+    /* Map filter (only visible on map tab) */
+    .map-filter-wrap {
+      display: flex; align-items: center; gap: 5px;
+      overflow-x: auto; scrollbar-width: none;
+    }
+    .map-filter-wrap::-webkit-scrollbar { display: none; }
+
+    .team-btn {
+      padding: 4px 12px;
+      border-radius: 3px;
+      border: 1px solid rgba(234,210,165,0.25);
+      background: transparent;
+      color: rgba(234,210,165,0.6);
+      font-size: 10px; font-weight: 600;
+      letter-spacing: 1px; text-transform: uppercase;
+      white-space: nowrap; transition: all 0.18s;
+    }
+    .team-btn:hover { color: var(--header-text); border-color: rgba(234,210,165,0.5); }
+    .team-btn.active { color: #fff; border-color: transparent; }
+    .team-btn[data-team="all"].active    { background: rgba(234,210,165,0.18); border-color: rgba(234,210,165,0.3); color: var(--header-text); }
+    .team-btn[data-team="Boston"].active      { background: var(--boston); }
+    .team-btn[data-team="Los Angeles"].active { background: var(--la); }
+    .team-btn[data-team="New York"].active    { background: var(--ny); }
+    .team-btn[data-team="San Francisco"].active { background: var(--sf); }
+
+    .player-count {
+      font-size: 10px; color: rgba(234,210,165,0.45);
+      white-space: nowrap; flex-shrink: 0;
+    }
+
+    /* ── PAGE TABS (below header) ───────────────────────────── */
+    .tab-bar {
+      position: fixed;
+      top: var(--header-h); left: 0; right: 0;
+      z-index: 800;
+      background: var(--header-bg);
+      border-bottom: 3px solid var(--accent);
+      display: flex;
+      padding: 0 24px;
+      gap: 0;
+    }
+
+    .tab-btn {
+      padding: 10px 20px;
+      border: none;
+      background: transparent;
+      color: rgba(234,210,165,0.5);
+      font-family: 'Oswald', sans-serif;
+      font-size: 13px; font-weight: 500;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -3px;
+      transition: all 0.18s;
+    }
+    .tab-btn:hover { color: var(--header-text); }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ── PAGE CONTENT ───────────────────────────────────────── */
+    --tab-bar-h: 42px;
+    .page-content {
+      padding-top: calc(var(--header-h) + 42px);
+    }
+
+    /* tab panels */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── BANNER ─────────────────────────────────────────────── */
+    .top-banner {
+      background: var(--header-bg);
+      padding: 22px 32px 20px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .banner-title {
+      font-family: 'Oswald', sans-serif; font-weight: 600;
+      font-size: clamp(22px, 4vw, 40px);
+      line-height: 1.05; letter-spacing: 0.5px;
+      text-transform: uppercase; color: var(--header-text);
+    }
+    .banner-hint {
+      margin-top: 5px; font-size: 11px;
+      color: rgba(234,210,165,0.45);
+    }
+
+    .stats-row { display: flex; gap: 20px; flex-wrap: wrap; flex-shrink: 0; }
+    .stat { text-align: center; min-width: 48px; }
+    .stat-num {
+      font-family: 'Oswald', sans-serif; font-size: 28px;
+      font-weight: 600; color: var(--accent); line-height: 1;
+    }
+    .stat-label {
+      font-size: 9px; letter-spacing: 1.5px;
+      text-transform: uppercase; color: rgba(234,210,165,0.4);
+      margin-top: 3px;
+    }
+
+    /* ── MAP ────────────────────────────────────────────────── */
+    .map-section { padding: 20px 24px 0; }
+
+    #map-wrap {
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      position: relative;
+      height: 58vh; min-height: 320px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+    #map { width: 100%; height: 100%; }
+    .leaflet-tile-pane { filter: saturate(0.75) brightness(0.97); }
+
+    .pin-wrap { display: flex; align-items: center; justify-content: center; transition: transform 0.18s; }
+    .pin-wrap:hover { transform: scale(1.2); }
+    .pin-dot {
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-family: 'Oswald', sans-serif; font-weight: 600; color: #fff;
+      border: 2px solid rgba(255,255,255,0.45);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    .pin-dot.s1 { width: 22px; height: 22px; }
+    .pin-dot.s2 { width: 28px; height: 28px; font-size: 11px; }
+    .pin-dot.s3 { width: 34px; height: 34px; font-size: 13px; }
+    .pin-dot.s4 { width: 42px; height: 42px; font-size: 15px; }
+
+    .map-legend {
+      position: absolute; bottom: 14px; left: 14px;
+      background: rgba(45,48,53,0.93);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius); padding: 10px 13px;
+      z-index: 500; pointer-events: none;
+    }
+    .legend-head { font-size: 8px; letter-spacing: 2px; text-transform: uppercase; color: rgba(234,210,165,0.5); margin-bottom: 7px; }
+    .legend-list { display: flex; flex-direction: column; gap: 5px; }
+    .legend-item { display: flex; align-items: center; gap: 7px; font-size: 10px; color: rgba(234,210,165,0.75); }
+    .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ── MOBILE FILTER ──────────────────────────────────────── */
+    .mobile-filter {
+      display: none;
+      padding: 8px 16px; gap: 6px;
+      overflow-x: auto; scrollbar-width: none;
+      background: var(--header-bg);
+      border-bottom: 2px solid var(--accent);
+    }
+    .mobile-filter::-webkit-scrollbar { display: none; }
+
+    /* ── STATS TAB ──────────────────────────────────────────── */
+    .stats-page {
+      padding: 24px 24px 40px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .stats-intro {
+      margin-bottom: 28px;
+    }
+    .stats-intro h2 {
+      font-family: 'Oswald', sans-serif; font-weight: 600;
+      font-size: 26px; letter-spacing: 0.5px;
+      text-transform: uppercase; color: var(--text);
+    }
+    .stats-intro p {
+      font-size: 12px; color: var(--muted); margin-top: 5px;
+    }
+
+    /* chart grid */
+    .chart-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .chart-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 20px 16px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+    }
+
+    .chart-card.wide {
+      grid-column: 1 / -1;
+    }
+
+    .chart-title {
+      font-family: 'Oswald', sans-serif; font-weight: 600;
+      font-size: 14px; letter-spacing: 1px;
+      text-transform: uppercase; color: var(--text);
+      margin-bottom: 4px;
+    }
+    .chart-subtitle {
+      font-size: 10px; color: var(--muted);
+      letter-spacing: 0.3px; margin-bottom: 16px;
+    }
+
+    .chart-area {
+      position: relative;
+      width: 100%;
+    }
+
+    /* ── BAR CHART ──────────────────────────────────────────── */
+    .bar-chart {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .bar-label {
+      font-size: 10px; font-weight: 600;
+      color: var(--text); white-space: nowrap;
+      min-width: 90px; text-align: right;
+      flex-shrink: 0;
+    }
+
+    .bar-label.short { min-width: 60px; }
+    .bar-label.xshort { min-width: 36px; }
+
+    .bar-track {
+      flex: 1;
+      background: #f0f0f0;
+      border-radius: 3px;
+      height: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+      display: flex; align-items: center;
+      padding-right: 6px; justify-content: flex-end;
+      min-width: 2px;
+    }
+
+    .bar-val {
+      font-size: 10px; font-weight: 600;
+      color: rgba(255,255,255,0.9);
+      white-space: nowrap;
+    }
+
+    /* small val shown outside when bar is narrow */
+    .bar-val-out {
+      font-size: 10px; font-weight: 600;
+      color: var(--muted);
+      min-width: 28px;
+    }
+
+    /* ── DOT PLOT (age distribution) ────────────────────────── */
+    .dot-plot {
+      position: relative;
+      padding-bottom: 24px;
+    }
+
+    .dot-axis {
+      display: flex;
+      border-top: 1px solid var(--border);
+      margin-top: 8px;
+      padding-top: 4px;
+    }
+
+    .dot-axis-label {
+      font-size: 9px; color: var(--muted);
+      text-align: center; flex: 1;
+    }
+
+    .dot-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .dot-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .dot-row-label {
+      font-size: 10px; font-weight: 600;
+      color: var(--text);
+      min-width: 120px; text-align: right;
+      flex-shrink: 0;
+    }
+
+    .dot-row-label.short { min-width: 56px; }
+
+    .dot-area {
+      flex: 1;
+      height: 22px;
+      position: relative;
+    }
+
+    .dot {
+      position: absolute;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      top: 50%; transform: translateY(-50%);
+      opacity: 0.85;
+      cursor: default;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+    .dot:hover { opacity: 1; transform: translateY(-50%) scale(1.4); z-index: 10; }
+
+    /* tooltip */
+    .dot-tip {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%; transform: translateX(-50%);
+      background: var(--text);
+      color: #fff;
+      font-size: 10px;
+      padding: 4px 7px;
+      border-radius: 4px;
+      white-space: nowrap;
+      z-index: 20;
+      pointer-events: none;
+    }
+    .dot:hover .dot-tip { display: block; }
+
+    /* ── GRID (country squares) ─────────────────────────────── */
+    .country-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: flex-end;
+    }
+
+    .country-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: default;
+    }
+
+    .country-block {
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Oswald', sans-serif; font-weight: 600;
+      color: #fff; font-size: 12px;
+      transition: transform 0.15s;
+    }
+    .country-block:hover { transform: scale(1.08); }
+
+    .country-name {
+      font-size: 9px; color: var(--muted);
+      text-align: center; max-width: 52px;
+      line-height: 1.2;
+    }
+
+    /* ── SUMMARY PILL ROW ───────────────────────────────────── */
+    .pill-row {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin-top: 16px;
+    }
+
+    .pill {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 10px; font-weight: 600;
+      letter-spacing: 0.5px;
+      color: #fff;
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    .pill-num {
+      font-family: 'Oswald', sans-serif;
+      font-size: 14px; font-weight: 600;
+    }
+
+    /* ── MODAL ──────────────────────────────────────────────── */
+    #overlay {
+      display: none; position: fixed; inset: 0;
+      z-index: 2000; background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(4px);
+      align-items: flex-end; justify-content: center;
+    }
+    #overlay.open { display: flex; }
+
+    #modal {
+      background: var(--card-bg);
+      border-top: 3px solid var(--accent);
+      border-radius: var(--radius) var(--radius) 0 0;
+      width: 100%; max-height: 80vh;
+      display: flex; flex-direction: column;
+      animation: slideUp 0.24s cubic-bezier(0.32, 1, 0.64, 1);
+      box-shadow: 0 -4px 28px rgba(0,0,0,0.14);
+    }
+    @keyframes slideUp {
+      from { transform: translateY(28px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    .modal-handle {
+      width: 32px; height: 3px; background: #ddd;
+      border-radius: 2px; margin: 8px auto 0; flex-shrink: 0;
+    }
+    .modal-head {
+      padding: 14px 20px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: flex-start;
+      justify-content: space-between; flex-shrink: 0;
+    }
+    .modal-loc {
+      font-family: 'Oswald', sans-serif; font-weight: 600;
+      font-size: 20px; letter-spacing: 0.5px;
+      text-transform: uppercase; color: var(--text); line-height: 1.1;
+    }
+    .modal-sub {
+      font-size: 10px; color: var(--muted);
+      letter-spacing: 1px; text-transform: uppercase; margin-top: 3px;
+    }
+    .modal-close {
+      width: 28px; height: 28px;
+      border: 1px solid var(--border); border-radius: 50%;
+      background: transparent; color: var(--muted); font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s; flex-shrink: 0; margin-left: 12px;
+    }
+    .modal-close:hover { background: var(--page-bg); color: var(--text); }
+
+    .player-grid {
+      padding: 14px 14px 22px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 10px; overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      background: var(--page-bg);
+    }
+
+    .p-card {
+      background: var(--card-bg); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden; display: block;
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+    .p-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .p-photo { width: 100%; aspect-ratio: 1/1; object-fit: cover; background: #eee; }
+    .p-fallback {
+      width: 100%; aspect-ratio: 1/1; display: none;
+      align-items: center; justify-content: center;
+      font-family: 'Oswald', sans-serif; font-size: 28px; color: #ccc; background: #f0f0f0;
+    }
+    .p-body { padding: 7px 9px 9px; border-top: 2px solid transparent; background: var(--card-bg); }
+    .p-name { font-size: 10px; font-weight: 600; color: var(--text); line-height: 1.3; }
+    .p-meta { display: flex; align-items: center; gap: 5px; margin-top: 3px; }
+    .p-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .p-team { font-size: 8px; color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase; }
+    .p-pos { font-size: 8px; color: #b0b0b0; margin-top: 1px; }
+
+    /* ── LEAFLET OVERRIDES ──────────────────────────────────── */
+    .leaflet-control-attribution { display: none; }
+    .leaflet-control-zoom { border: 1px solid var(--border) !important; border-radius: var(--radius) !important; overflow: hidden; box-shadow: 0 1px 5px rgba(0,0,0,0.1) !important; }
+    .leaflet-control-zoom a { background: var(--card-bg) !important; color: var(--text) !important; border-color: var(--border) !important; width: 28px !important; height: 28px !important; line-height: 28px !important; }
+    .leaflet-control-zoom a:hover { background: var(--page-bg) !important; }
+
+    /* ── FOOTER ─────────────────────────────────────────────── */
+    footer {
+      background: var(--header-bg); padding: 14px 28px;
+      display: flex; align-items: center;
+      justify-content: space-between; flex-wrap: wrap; gap: 8px;
+      margin-top: 0;
+    }
+    .footer-logo { height: 26px; filter: brightness(0) invert(1); opacity: 0.65; }
+    footer span { font-size: 10px; color: rgba(234,210,165,0.4); }
+    footer a { font-size: 10px; color: rgba(234,210,165,0.5); transition: color 0.15s; }
+    footer a:hover { color: var(--header-text); text-decoration: underline; }
+
+    /* ── RESPONSIVE ─────────────────────────────────────────── */
+    @media (min-width: 640px) {
+      header { padding: 0 32px; }
+      .top-banner { padding: 26px 40px 22px; }
+      .map-section { padding: 24px 32px 0; }
+      .stats-page { padding: 28px 32px 48px; }
+
+      #overlay { align-items: center; padding: 24px; }
+      #modal {
+        border-radius: var(--radius); border-top: 3px solid var(--accent);
+        width: min(92vw, 680px); max-height: 88vh;
+      }
+      .modal-handle { display: none; }
+      .mobile-filter { display: none !important; }
+    }
+
+    @media (max-width: 639px) {
+      header { padding: 0 14px; }
+      .map-filter-wrap { display: none; }
+      .player-count { display: none; }
+      .mobile-filter { display: flex; }
+      .top-banner { padding: 18px 16px; }
+      .banner-title { font-size: 20px; }
+      .stats-row { gap: 12px; }
+      .stat-num { font-size: 22px; }
+      .map-section { padding: 12px 12px 0; }
+      .map-legend { display: none; }
+      .stats-page { padding: 16px 12px 32px; }
+      .chart-grid { grid-template-columns: 1fr; }
+      .chart-card.wide { grid-column: 1; }
+      .bar-label { min-width: 72px; font-size: 9px; }
+      .dot-row-label { min-width: 72px; font-size: 9px; }
+      .tab-btn { padding: 9px 14px; font-size: 11px; letter-spacing: 1px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ──────────────────────────────────────────────────── -->
+<header>
+  <a class="logo-link" href="https://www.womensprobaseballleague.com" target="_blank" rel="noopener">
+    <img class="logo-img"
+         src="https://www.womensprobaseballleague.com/wp-content/uploads/2024/10/WPBL-P-R-500.png"
+         alt="WPBL" onerror="this.style.display='none'" />
+    <div class="logo-wordmark">
+      <span class="logo-main">WPBL</span>
+      <span class="logo-sub">Player Map &amp; Stats</span>
+    </div>
+  </a>
+
+  <div class="map-filter-wrap" id="header-filter" role="group" aria-label="Filter by team">
+    <button class="team-btn active" data-team="all">All Teams</button>
+    <button class="team-btn" data-team="Boston">Boston</button>
+    <button class="team-btn" data-team="Los Angeles">Los Angeles</button>
+    <button class="team-btn" data-team="New York">New York</button>
+    <button class="team-btn" data-team="San Francisco">San Francisco</button>
+  </div>
+
+  <span class="player-count" id="player-count">116 players</span>
+</header>
+
+<!-- ── TAB BAR ──────────────────────────────────────────────────── -->
+<div class="tab-bar" role="tablist">
+  <button class="tab-btn active" data-tab="map" role="tab">🗺 Map</button>
+  <button class="tab-btn" data-tab="stats" role="tab">📊 Stats</button>
+</div>
+
+<div class="page-content">
+
+  <!-- ══════════════════ MAP TAB ══════════════════ -->
+  <div class="tab-panel active" id="panel-map">
+
+    <!-- mobile filter -->
+    <div class="mobile-filter" role="group" aria-label="Filter by team">
+      <button class="team-btn active" data-team="all">All</button>
+      <button class="team-btn" data-team="Boston">Boston</button>
+      <button class="team-btn" data-team="Los Angeles">LA</button>
+      <button class="team-btn" data-team="New York">New York</button>
+      <button class="team-btn" data-team="San Francisco">SF</button>
+    </div>
+
+    <div class="top-banner">
+      <div>
+        <h1 class="banner-title">Player Hometown Map</h1>
+        <p class="banner-hint">Tap any pin to explore players by hometown · 116 players across 4 teams</p>
+      </div>
+      <div class="stats-row">
+        <div class="stat"><div class="stat-num" id="stat-players">116</div><div class="stat-label">Players</div></div>
+        <div class="stat"><div class="stat-num" id="stat-countries">15</div><div class="stat-label">Countries</div></div>
+        <div class="stat"><div class="stat-num" id="stat-locations">--</div><div class="stat-label">Hometowns</div></div>
+        <div class="stat"><div class="stat-num">4</div><div class="stat-label">Teams</div></div>
+      </div>
+    </div>
+
+    <div class="map-section">
+      <div id="map-wrap">
+        <div id="map"></div>
+        <div class="map-legend" aria-hidden="true">
+          <div class="legend-head">Teams</div>
+          <div class="legend-list">
+            <div class="legend-item"><div class="legend-dot" style="background:var(--boston)"></div>Boston</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--la)"></div>Los Angeles</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--ny)"></div>New York</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--sf)"></div>San Francisco</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>Multiple teams</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /map panel -->
+
+  <!-- ══════════════════ STATS TAB ══════════════════ -->
+  <div class="tab-panel" id="panel-stats">
+    <div class="stats-page">
+      <div class="stats-intro">
+        <h2>League Breakdown</h2>
+        <p>Player data across all 4 teams · 2026 inaugural season roster</p>
+      </div>
+
+      <div class="chart-grid">
+
+        <!-- CHART 1: Age distribution dot plot -->
+        <div class="chart-card wide">
+          <div class="chart-title">Age Distribution by Team</div>
+          <div class="chart-subtitle">Each dot = one player · hover for name · grouped by team</div>
+          <div class="chart-area">
+            <div class="dot-rows" id="age-dot-rows"></div>
+            <div class="dot-axis" id="age-axis"></div>
+          </div>
+          <div class="pill-row" id="age-pills"></div>
+        </div>
+
+        <!-- CHART 2: Position breakdown -->
+        <div class="chart-card">
+          <div class="chart-title">Positions</div>
+          <div class="chart-subtitle">Grouped into categories across all teams</div>
+          <div class="chart-area">
+            <div class="bar-chart" id="pos-chart"></div>
+          </div>
+        </div>
+
+        <!-- CHART 3: Position by team -->
+        <div class="chart-card">
+          <div class="chart-title">Pitchers vs. Position Players</div>
+          <div class="chart-subtitle">By team — pitchers include RHP &amp; LHP</div>
+          <div class="chart-area">
+            <div class="bar-chart" id="pitcher-chart"></div>
+          </div>
+        </div>
+
+        <!-- CHART 4: Country of origin -->
+        <div class="chart-card wide">
+          <div class="chart-title">Countries of Origin</div>
+          <div class="chart-subtitle">Block size proportional to player count · color = dominant team</div>
+          <div class="chart-area">
+            <div class="country-grid" id="country-grid"></div>
+          </div>
+        </div>
+
+        <!-- CHART 5: Team roster breakdown by country -->
+        <div class="chart-card">
+          <div class="chart-title">USA vs. International by Team</div>
+          <div class="chart-subtitle">How international each roster is</div>
+          <div class="chart-area">
+            <div class="bar-chart" id="intl-chart"></div>
+          </div>
+        </div>
+
+        <!-- CHART 6: Age by position group -->
+        <div class="chart-card">
+          <div class="chart-title">Average Age by Position Group</div>
+          <div class="chart-subtitle">Pitchers, catchers, infielders, outfielders</div>
+          <div class="chart-area">
+            <div class="bar-chart" id="age-pos-chart"></div>
+          </div>
+        </div>
+
+      </div><!-- /chart-grid -->
+    </div>
+  </div><!-- /stats panel -->
+
+</div><!-- /page-content -->
+
+<!-- ── MODAL ─────────────────────────────────────────────────────── -->
+<div id="overlay" role="dialog" aria-modal="true">
+  <div id="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-head">
+      <div>
+        <div class="modal-loc" id="modal-loc">Location</div>
+        <div class="modal-sub" id="modal-sub"></div>
+      </div>
+      <button class="modal-close" id="modal-close">✕</button>
+    </div>
+    <div class="player-grid" id="player-grid"></div>
+  </div>
+</div>
+
+<!-- ── FOOTER ─────────────────────────────────────────────────────── -->
+<footer>
+  <img class="footer-logo"
+       src="https://www.womensprobaseballleague.com/wp-content/uploads/2024/10/WPBL-P-R-500.png"
+       alt="WPBL" onerror="this.style.display='none'" />
+  <span>© 2026 Women's Pro Baseball League</span>
+  <a href="https://www.womensprobaseballleague.com" target="_blank" rel="noopener">womensprobaseballleague.com ↗</a>
+</footer>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// DATA
+// ══════════════════════════════════════════════════════════════
+const TEAM_COLORS = {
+  'Boston':        '#268040',
+  'Los Angeles':   '#475da9',
+  'New York':      '#299598',
+  'San Francisco': '#8152a0',
+};
+
+const TEAMS = ['Boston', 'Los Angeles', 'New York', 'San Francisco'];
+
+function slug(name) {
+  return name.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[''`]/g,'').replace(/[^a-z0-9\s-]/g,'')
+    .trim().replace(/\s+/g,'-');
+}
+const playerUrl = n => `https://www.womensprobaseballleague.com/players/${slug(n)}/`;
+
+const PLAYERS = [
+  // BOSTON
+  { name:"Hyeonah Kim",          team:"Boston", pos:"C",       age:25, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/hyeonah-kim-scaled.jpg?resize=160%2C160&quality=89&ssl=1",         coords:[37.5665,126.9780],  location:"Seoul, South Korea",          country:"South Korea" },
+  { name:"Alli Schroder",        team:"Boston", pos:"RHP",     age:24, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/alli-schroder-scaled.jpg?resize=160%2C160&quality=89&ssl=1",       coords:[49.2827,-117.6011], location:"Fruitvale, BC, Canada",        country:"Canada" },
+  { name:"Raine Padgham",        team:"Boston", pos:"RHP",     age:20, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/raine-padgham-scaled.jpg?resize=160%2C160&quality=89&ssl=1",       coords:[49.0504,-122.3045], location:"Abbotsford, BC, Canada",       country:"Canada" },
+  { name:"Lexi Hastings",        team:"Boston", pos:"LF",      age:23, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/alexis-hastings-scaled.jpg?resize=160%2C160&quality=89&ssl=1",     coords:[35.6516,-84.2882],  location:"Holly Springs, NC, USA",       country:"USA" },
+  { name:"Kate Blunt",           team:"Boston", pos:"SS",      age:23, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/kate-blunt-scaled.jpg?resize=160%2C160&quality=89&ssl=1",          coords:[33.5587,-117.6391], location:"Ladera Ranch, CA, USA",        country:"USA" },
+  { name:"Denver Bryant",        team:"Boston", pos:"2B",      age:23, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/denver-bryant-scaled.jpg?resize=160%2C160&quality=89&ssl=1",       coords:[31.5785,-84.1557],  location:"Albany, GA, USA",              country:"USA" },
+  { name:"Ticara Geldenhuis",    team:"Boston", pos:"OF",      age:24, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Ticara-Geldenhuis.jpeg?resize=160%2C160&quality=89&ssl=1",         coords:[-26.0275,28.0817],  location:"Waterfall, South Africa",      country:"South Africa" },
+  { name:"Suzuka Yamamoto",      team:"Boston", pos:"SS",      age:27, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/suzuka-yamamoto-scaled.jpg?resize=160%2C160&quality=89&ssl=1",     coords:[34.6631,134.0522],  location:"Setouchi City, Japan",         country:"Japan" },
+  { name:"Maïka Dumais",         team:"Boston", pos:"RHP",     age:18, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/maika-dumais-scaled.jpg?resize=160%2C160&quality=89&ssl=1",        coords:[46.8139,-71.2080],  location:"Quebec City, QC, Canada",      country:"Canada" },
+  { name:"Gigi Schiano",         team:"Boston", pos:"RHP",     age:19, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/gisella-schiano-scaled.jpg?resize=160%2C160&quality=89&ssl=1",     coords:[40.5701,-77.0578],  location:"Berrysburg, PA, USA",          country:"USA" },
+  { name:"Maria José Valenzuela",team:"Boston", pos:"IF",      age:28, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Maria-Jose-Valenzuela-Gutierrez.jpg?resize=160%2C160&quality=89&ssl=1", coords:[29.0729,-110.9559], location:"Hermosillo, Mexico",          country:"Mexico" },
+  { name:"Molly Paddison",       team:"Boston", pos:"CF",      age:19, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/molly-paddison-scaled.jpg?resize=160%2C160&quality=89&ssl=1",      coords:[-27.5021,152.8993], location:"Pullenvale, QLD, Australia",   country:"Australia" },
+  { name:"Beth Greenwood",       team:"Boston", pos:"C",       age:26, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/beth-greenwood-scaled.jpg?resize=160%2C160&quality=89&ssl=1",      coords:[42.8712,-71.6728],  location:"Amherst, NH, USA",             country:"USA" },
+  { name:"Sabrina Robinson",     team:"Boston", pos:"1B",      age:23, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/sabrina-robinson-scaled.jpg?resize=160%2C160&quality=89&ssl=1",    coords:[40.7968,-74.4774],  location:"Morristown, NJ, USA",          country:"USA" },
+  { name:"Gabrielle Haas",       team:"Boston", pos:"SS",      age:24, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/gabrielle-haas-scaled.jpg?resize=160%2C160&quality=89&ssl=1",      coords:[26.7153,-80.0534],  location:"Palm Beach Gardens, FL, USA",  country:"USA" },
+  { name:"Paloma Benach",        team:"Boston", pos:"LHP",     age:22, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/paloma-benach-scaled.jpg?resize=160%2C160&quality=89&ssl=1",       coords:[38.9072,-77.0369],  location:"Washington, DC, USA",          country:"USA" },
+  { name:"Stephanie Everett",    team:"Boston", pos:"LF",      age:28, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/stephanie-everett-scaled.jpg?resize=160%2C160&quality=89&ssl=1",   coords:[38.9912,-77.0261],  location:"Silver Spring, MD, USA",       country:"USA" },
+  { name:"Luciana Moreno",       team:"Boston", pos:"IF",      age:null, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Luciana-Moreno.jpg?resize=160%2C160&quality=89&ssl=1",           coords:[43.1836,-89.2143],  location:"Sun Prairie, WI, USA",         country:"USA" },
+  { name:"Allie Bebbere",        team:"Boston", pos:"RHP",     age:31, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/allie-bebbere-scaled.jpg?resize=160%2C160&quality=89&ssl=1",       coords:[-37.7394,145.1193], location:"Montmorency, VIC, Australia",  country:"Australia" },
+  { name:"Emily Baxter",         team:"Boston", pos:"OF",      age:25, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Emily-Baxter.jpg?resize=160%2C160&quality=89&ssl=1",               coords:[43.4675,-79.6877],  location:"Oakville, ON, Canada",         country:"Canada" },
+  { name:"Braidy Birdsall",      team:"Boston", pos:"2B",      age:20, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Braidy-Birdsall.jpg?resize=160%2C160&quality=89&ssl=1",            coords:[52.1332,-106.6700], location:"Saskatoon, SK, Canada",        country:"Canada" },
+  { name:"Meaghan Houk",         team:"Boston", pos:"IF",      age:23, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Meaghan-Houk.jpg?resize=160%2C160&quality=89&ssl=1",               coords:[42.4637,-73.8096],  location:"Ravena, NY, USA",              country:"USA" },
+  { name:"Laura Hirai",          team:"Boston", pos:"RHP",     age:26, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Laura-Hirai.jpg?resize=160%2C160&quality=89&ssl=1",                coords:[51.5074,-0.1278],   location:"London, UK",                   country:"UK" },
+  { name:"Olivia Bricker",       team:"Boston", pos:"LHP",     age:25, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/olivia-bricker-scaled.jpg?resize=160%2C160&quality=89&ssl=1",      coords:[39.1031,-84.5120],  location:"Cincinnati, OH, USA",          country:"USA" },
+  { name:"Sadie Zion",           team:"Boston", pos:"1B",      age:20, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/sadie-zion-1-scaled.jpg?resize=160%2C160&quality=89&ssl=1",        coords:[41.3948,-73.4540],  location:"Danbury, CT, USA",             country:"USA" },
+  { name:"Nadia Diaz",           team:"Boston", pos:"3B",      age:25, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/nadia-diaz-scaled.jpg?resize=160%2C160&quality=89&ssl=1",          coords:[43.1566,-76.1333],  location:"Cicero, NY, USA",              country:"USA" },
+  { name:"Nylah Ramirez",        team:"Boston", pos:"RHP",     age:28, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/nylah-ramirez-scaled.jpg?resize=160%2C160&quality=89&ssl=1",       coords:[40.6782,-73.9442],  location:"Brooklyn, NY, USA",            country:"USA" },
+  { name:"Clara Rice",           team:"Boston", pos:"C",       age:20, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/clara-rice-scaled.jpg?resize=160%2C160&quality=89&ssl=1",          coords:[39.5,-98.35],       location:"USA",                          country:"USA" },
+  { name:"Mary Grace O'Neill",   team:"Boston", pos:"CF",      age:22, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/mary-grace-o-neill-scaled.jpg?resize=160%2C160&quality=89&ssl=1",  coords:[41.1345,-73.7954],  location:"Pleasantville, NY, USA",       country:"USA" },
+  // LOS ANGELES
+  { name:"Ayami Sato",           team:"Los Angeles", pos:"RHP",     age:36, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/ayami-sato-scaled.jpg?resize=160%2C160&quality=89&ssl=1",       coords:[35.7895,139.4566],  location:"Tokorozawa, Japan",            country:"Japan" },
+  { name:"Ashton Lansdell",      team:"Los Angeles", pos:"3B",      age:25, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/ashton-lansdell-scaled.jpg?resize=160%2C160&quality=89&ssl=1",  coords:[33.9526,-84.5499],  location:"Marietta, GA, USA",            country:"USA" },
+  { name:"Mo'ne Davis",          team:"Los Angeles", pos:"CF",      age:24, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/mo-ne-davis-scaled.jpg?resize=160%2C160&quality=89&ssl=1",       coords:[39.9526,-75.1652],  location:"Philadelphia, PA, USA",        country:"USA" },
+  { name:"Meggie Meidlinger",    team:"Los Angeles", pos:"RHP",     age:38, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/meggie-meidlinger-scaled.jpg?resize=160%2C160&quality=89&ssl=1", coords:[39.0026,-77.4047],  location:"Sterling, VA, USA",            country:"USA" },
+  { name:"Thaima Maximiliana",   team:"Los Angeles", pos:"SS",      age:19, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/thaima-maximiliana-scaled.jpg?resize=160%2C160&quality=89&ssl=1", coords:[12.1696,-68.9900],  location:"Curaçao",                     country:"Curaçao" },
+  { name:"Jamie Mackay",         team:"Los Angeles", pos:"C",       age:23, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Jamie-Mackay.jpg?resize=160%2C160&quality=89&ssl=1",             coords:[33.5427,-117.7854], location:"Laguna Beach, CA, USA",        country:"USA" },
+  { name:"Emi Saiki",            team:"Los Angeles", pos:"SS",      age:24, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/emi-saiki-scaled.jpg?resize=160%2C160&quality=89&ssl=1",         coords:[34.3401,134.0434],  location:"Kagawa, Japan",                country:"Japan" },
+  { name:"Samaria Benítez",      team:"Los Angeles", pos:"SS",      age:23, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/samaria-benitez-scaled.jpg?resize=160%2C160&quality=89&ssl=1",  coords:[21.7514,-104.8455], location:"Nayarit, Mexico",              country:"Mexico" },
+  { name:"Maggie Foxx",          team:"Los Angeles", pos:"C",       age:20, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/maggie-foxx-scaled.jpg?resize=160%2C160&quality=89&ssl=1",       coords:[42.9442,-71.4558],  location:"Bedford, NH, USA",             country:"USA" },
+  { name:"Michelle Roche",       team:"Los Angeles", pos:"RHP",     age:20, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/michelle-roche-scaled.jpg?resize=160%2C160&quality=89&ssl=1",   coords:[49.2488,-122.9805], location:"Burnaby, BC, Canada",          country:"Canada" },
+  { name:"Suzu Narasaki",        team:"Los Angeles", pos:"CF",      age:26, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/suzu-narasaki-scaled.jpg?resize=160%2C160&quality=89&ssl=1",     coords:[34.6631,134.0522],  location:"Setouchi City, Japan",         country:"Japan" },
+  { name:"Caitlin Eynon",        team:"Los Angeles", pos:"SS",      age:23, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Caitlin-Eynon.jpg?resize=160%2C160&quality=89&ssl=1",           coords:[-31.9505,115.8605], location:"Perth, Australia",             country:"Australia" },
+  { name:"Sarah Edwards",        team:"Los Angeles", pos:"1B",      age:29, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Sarah-Edwards.jpg?resize=160%2C160&quality=89&ssl=1",           coords:[40.7282,-73.2485],  location:"Bay Shore, NY, USA",           country:"USA" },
+  { name:"Brittany Apgar",       team:"Los Angeles", pos:"CF",      age:22, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/brittany-apgar-scaled.jpg?resize=160%2C160&quality=89&ssl=1",   coords:[36.0726,-79.7920],  location:"Greensboro, NC, USA",          country:"USA" },
+  { name:"Leah Cornish",         team:"Los Angeles", pos:"C",       age:19, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Leah-Cornish.jpg?resize=160%2C160&quality=89&ssl=1",            coords:[-31.9505,115.8605], location:"Perth, Australia",             country:"Australia" },
+  { name:"Juliette Kladko",      team:"Los Angeles", pos:"LHP",     age:22, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/juliette-kladko-scaled.jpg?resize=160%2C160&quality=89&ssl=1",  coords:[49.2827,-123.1207], location:"Vancouver, BC, Canada",        country:"Canada" },
+  { name:"Amira Hondras",        team:"Los Angeles", pos:"2B",      age:17, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/amira-hondras-scaled.jpg?resize=160%2C160&quality=89&ssl=1",    coords:[41.8781,-87.6298],  location:"Chicago, IL, USA",             country:"USA" },
+  { name:"Sydney Barry",         team:"Los Angeles", pos:"RHP",     age:19, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Sydney-Barry.jpg?resize=160%2C160&quality=89&ssl=1",            coords:[56.7264,-111.3803], location:"Fort McMurray, AB, Canada",    country:"Canada" },
+  { name:"Rio Obitsu",           team:"Los Angeles", pos:"2B",      age:24, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/rio-obitsu-scaled.jpg?resize=160%2C160&quality=89&ssl=1",       coords:[35.8617,139.6455],  location:"Saitama City, Japan",          country:"Japan" },
+  { name:"Isabella Villarreal",  team:"Los Angeles", pos:"2B",      age:19, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/isabella-villarreal-scaled.jpg?resize=160%2C160&quality=89&ssl=1", coords:[41.9737,-83.2641], location:"Newport, MI, USA",             country:"USA" },
+  { name:"Elodie O'Sullivan",    team:"Los Angeles", pos:"OF",      age:32, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Elodie-OSullivan.jpg?resize=160%2C160&quality=89&ssl=1",        coords:[-31.9505,115.8605], location:"Perth, Australia",             country:"Australia" },
+  { name:"Genevieve Hastings",   team:"Los Angeles", pos:"SS",      age:20, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/genevieve-hastings-scaled.jpg?resize=160%2C160&quality=89&ssl=1", coords:[45.7833,-108.5007], location:"Billings, MT, USA",            country:"USA" },
+  { name:"Ayuri Shimano",        team:"Los Angeles", pos:"RHP",     age:22, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Ayuri-Shimano.jpg?resize=160%2C160&quality=89&ssl=1",           coords:[34.6937,135.5022],  location:"Osaka, Japan",                 country:"Japan" },
+  { name:"Luisa Hernandez",      team:"Los Angeles", pos:"1B",      age:35, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/luisa-hernandez-scaled.jpg?resize=160%2C160&quality=89&ssl=1",  coords:[21.3567,-101.9326], location:"Lagos de Moreno, Mexico",      country:"Mexico" },
+  { name:"Adelaide Frank",       team:"Los Angeles", pos:"1B",      age:17, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/adelaide-frank-scaled.jpg?resize=160%2C160&quality=89&ssl=1",   coords:[38.5342,-90.3374],  location:"Oakville, MO, USA",            country:"USA" },
+  { name:"Brittany Womack",      team:"Los Angeles", pos:"RF",      age:37, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/brittany-womack-scaled.jpg?resize=160%2C160&quality=89&ssl=1",  coords:[32.7157,-117.1611], location:"San Diego, CA, USA",           country:"USA" },
+  { name:"Celicia Wilken",       team:"Los Angeles", pos:"1B",      age:34, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/celicia-wilken-scaled.jpg?resize=160%2C160&quality=89&ssl=1",   coords:[30.2672,-97.7431],  location:"Austin, TX, USA",              country:"USA" },
+  { name:"Trinity Curtis",       team:"Los Angeles", pos:"RHP",     age:24, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/trinity-curtis-scaled.jpg?resize=160%2C160&quality=89&ssl=1",   coords:[37.3247,-119.6594], location:"Oakhurst, CA, USA",            country:"USA" },
+  { name:"Addisyn Baird",        team:"Los Angeles", pos:"SS",      age:18, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/addisyn-baird-1-scaled.jpg?resize=160%2C160&quality=89&ssl=1",  coords:[41.7336,-86.1238],  location:"Granger, IN, USA",             country:"USA" },
+  // NEW YORK
+  { name:"Kylee Lahners",        team:"New York", pos:"3B",  age:33, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/kylee-lahner-scaled.jpg?resize=160%2C160&quality=89&ssl=1",      coords:[35.1954,-79.4695],  location:"Pinehurst, NC, USA",           country:"USA" },
+  { name:"Denae Benites",        team:"New York", pos:"C",   age:24, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/denae-benites-scaled.jpg?resize=160%2C160&quality=89&ssl=1",    coords:[36.1699,-115.1398], location:"Las Vegas, NV, USA",           country:"USA" },
+  { name:"Rakyung Kim",          team:"New York", pos:"RHP", age:26, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/rakyung-kim-scaled.jpg?resize=160%2C160&quality=89&ssl=1",      coords:[37.5665,126.9780],  location:"Seoul, South Korea",           country:"South Korea" },
+  { name:"Valerie Perez",        team:"New York", pos:"SS",  age:34, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/valerie-perez-scaled.jpg?resize=160%2C160&quality=89&ssl=1",    coords:[27.8006,-97.3964],  location:"Corpus Christi, TX, USA",      country:"USA" },
+  { name:"Jaida Lee",            team:"New York", pos:"RHP", age:20, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/jaida-lee-scaled.jpg?resize=160%2C160&quality=89&ssl=1",        coords:[47.5615,-52.7126],  location:"St. John's, NL, Canada",       country:"Canada" },
+  { name:"London Studer",        team:"New York", pos:"1B",  age:19, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/london-studer-scaled.jpg?resize=160%2C160&quality=89&ssl=1",    coords:[39.9622,-82.8377],  location:"Gahanna, OH, USA",             country:"USA" },
+  { name:"Keira Izumi",          team:"New York", pos:"SS",  age:19, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Keira-Izumi-1.jpg?resize=160%2C160&quality=89&ssl=1",          coords:[32.7157,-117.1611], location:"San Diego, CA, USA",           country:"USA" },
+  { name:"Natsuki Yonetani",     team:"New York", pos:"LF",  age:24, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/yonetani-natsuki-scaled.jpg?resize=160%2C160&quality=89&ssl=1", coords:[35.9073,139.6558],  location:"Saitama, Japan",               country:"Japan" },
+  { name:"Alyssa Zettlemoyer",   team:"New York", pos:"C",   age:19, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/alyssa-zettlemoyer-scaled.jpg?resize=160%2C160&quality=89&ssl=1", coords:[33.5539,-117.2139], location:"Murrieta, CA, USA",            country:"USA" },
+  { name:"Madison Willan",       team:"New York", pos:"IF",  age:25, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Madison-Willan.jpg?resize=160%2C160&quality=89&ssl=1",          coords:[53.5461,-113.4938], location:"Edmonton, AB, Canada",         country:"Canada" },
+  { name:"Claire Eccles",        team:"New York", pos:"CF",  age:28, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/claire-eccles-scaled.jpg?resize=160%2C160&quality=89&ssl=1",    coords:[49.2827,-123.1207], location:"Vancouver, BC, Canada",        country:"Canada" },
+  { name:"Elodie Ciamarro",      team:"New York", pos:"C",   age:19, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/elodie-ciamarro-scaled.jpg?resize=160%2C160&quality=89&ssl=1",  coords:[45.5500,-73.3200],  location:"Mont-Saint-Hilaire, QC, Canada", country:"Canada" },
+  { name:"Jacqui Reynolds",      team:"New York", pos:"RHP", age:31, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/jacqueline-reynolds-scaled.jpg?resize=160%2C160&quality=89&ssl=1", coords:[42.4862,-71.1547], location:"Woburn, MA, USA",              country:"USA" },
+  { name:"Diana Ibarra",         team:"New York", pos:"CF",  age:26, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/diana-ibarra-scaled.jpg?resize=160%2C160&quality=89&ssl=1",     coords:[20.8112,-102.7425], location:"Tepatitlán, Mexico",           country:"Mexico" },
+  { name:"Claire O'Sullivan",    team:"New York", pos:"RHP", age:31, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Claire-OSullivan.jpg?resize=160%2C160&quality=89&ssl=1",        coords:[-33.9497,151.2478], location:"Maroubra, NSW, Australia",     country:"Australia" },
+  { name:"McKenna Huff",         team:"New York", pos:"SS",  age:20, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/mckenna-huff-scaled.jpg?resize=160%2C160&quality=89&ssl=1",     coords:[38.8462,-77.3064],  location:"Fairfax, VA, USA",             country:"USA" },
+  { name:"Maddison Erwin",       team:"New York", pos:"RHP", age:23, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Maddison-Erwin.jpg?resize=160%2C160&quality=89&ssl=1",         coords:[-35.2809,149.1300], location:"Canberra, Australia",          country:"Australia" },
+  { name:"Angelis Rivera",       team:"New York", pos:"RHP", age:26, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/angelis-rivera-scaled.jpg?resize=160%2C160&quality=89&ssl=1",  coords:[18.2273,-65.8832],  location:"Juncos, Puerto Rico",          country:"Puerto Rico" },
+  { name:"Rocio Barajas",        team:"New York", pos:"RHP", age:28, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/rocio-barajas-scaled.jpg?resize=160%2C160&quality=89&ssl=1",   coords:[20.6534,-105.2253], location:"Puerto Vallarta, Mexico",      country:"Mexico" },
+  { name:"Nicole Rivera-Moats",  team:"New York", pos:"2B",  age:37, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/nicole-rivera-scaled.jpg?resize=160%2C160&quality=89&ssl=1",   coords:[39.5,-98.35],       location:"USA",                          country:"USA" },
+  { name:"Katherine Murphy",     team:"New York", pos:"LF",  age:19, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/katherine-murphy-scaled.jpg?resize=160%2C160&quality=89&ssl=1", coords:[42.3962,-71.1780],  location:"Belmont, MA, USA",             country:"USA" },
+  { name:"Zoe Falardeau",        team:"New York", pos:"RHP", age:18, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Zoe-Falardeau.jpg?resize=160%2C160&quality=89&ssl=1",          coords:[42.9920,-79.2477],  location:"Welland, ON, Canada",          country:"Canada" },
+  { name:"Adelaide Ziebart",     team:"New York", pos:"RF",  age:22, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/adelaide-ziebart-scaled.jpg?resize=160%2C160&quality=89&ssl=1", coords:[52.1332,-106.6700], location:"Saskatoon, SK, Canada",        country:"Canada" },
+  { name:"Edith De Leija",       team:"New York", pos:"3B",  age:22, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Edith-De-Leija.jpg?resize=160%2C160&quality=89&ssl=1",         coords:[20.2016,-99.8816],  location:"Tula de Allende, Mexico",      country:"Mexico" },
+  { name:"Angela Valenzuela",    team:"New York", pos:"RHP", age:19, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/angela-valenzuela-scaled.jpg?resize=160%2C160&quality=89&ssl=1", coords:[33.4484,-112.0740], location:"Phoenix, AZ, USA",             country:"USA" },
+  { name:"Melissa Mayeux",       team:"New York", pos:"SS",  age:27, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Melissa-Mayeaux.jpeg?resize=160%2C160&quality=89&ssl=1",        coords:[49.2232,1.0834],    location:"Louviers, France",             country:"France" },
+  { name:"Chloe Atkinson",       team:"New York", pos:"",    age:19, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Chloe-Atkinson-1.jpg?resize=160%2C160&quality=89&ssl=1",        coords:[-31.9505,115.8605], location:"Perth, Australia",             country:"Australia" },
+  { name:"Milanyela Cortez",     team:"New York", pos:"RHP", age:28, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/milanyela-cortez-scaled.jpg?resize=160%2C160&quality=89&ssl=1", coords:[10.0647,-69.3173],  location:"Barquisimeto, Venezuela",      country:"Venezuela" },
+  { name:"Abigail Moore",        team:"New York", pos:"C",   age:18, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/abigail-moore-scaled.jpg?resize=160%2C160&quality=89&ssl=1",    coords:[32.7357,-97.1081],  location:"Arlington, TX, USA",           country:"USA" },
+  { name:"Minseo Park",          team:"New York", pos:"",    age:null, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Minseo-Park.jpg?resize=160%2C160&quality=89&ssl=1",           coords:[37.5665,126.9780],  location:"Seoul, South Korea",           country:"South Korea" },
+  { name:"Sarah Beaulieu",       team:"New York", pos:"RHP", age:22, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/sarah-beaulieu-scaled.jpg?resize=160%2C160&quality=89&ssl=1",   coords:[47.8362,-69.5416],  location:"Rivière-du-Loup, QC, Canada",  country:"Canada" },
+  // SAN FRANCISCO
+  { name:"Kelsie Whitmore",      team:"San Francisco", pos:"RHP",     age:27, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/kelsie-whitmore-scaled.jpg?resize=160%2C160&quality=89&ssl=1",    coords:[32.7157,-117.1611], location:"San Diego, CA, USA",           country:"USA" },
+  { name:"Amanda Gianelloni",    team:"San Francisco", pos:"2B",      age:29, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/amanda-gianelloni-scaled.jpg?resize=160%2C160&quality=89&ssl=1",  coords:[29.9511,-90.0715],  location:"New Orleans, LA, USA",         country:"USA" },
+  { name:"Joely Leguizamon",     team:"San Francisco", pos:"SS",      age:26, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/joely-leguizamon-1-scaled.jpg?resize=160%2C160&quality=89&ssl=1", coords:[30.3322,-81.6557],  location:"Jacksonville, FL, USA",        country:"USA" },
+  { name:"Jill Albayati",        team:"San Francisco", pos:"RHP",     age:22, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Jill-Albayati-Large.jpeg?resize=160%2C160&quality=89&ssl=1",      coords:[33.8353,-117.9145], location:"Anaheim, CA, USA",             country:"USA" },
+  { name:"Samantha Gutierrez",   team:"San Francisco", pos:"C",       age:23, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/samantha-gutierrez-scaled.jpg?resize=160%2C160&quality=89&ssl=1", coords:[32.7157,-117.1611], location:"San Diego, CA, USA",           country:"USA" },
+  { name:"Ayaka Yamamoto",       team:"San Francisco", pos:"3B",      age:21, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/ayaka-yamamoto-scaled.jpg?resize=160%2C160&quality=89&ssl=1",     coords:[34.4859,133.3624],  location:"Fukuyama, Japan",              country:"Japan" },
+  { name:"Niki Eckert",          team:"San Francisco", pos:"LHP",     age:23, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/niki-eckert.jpg?resize=160%2C160&quality=89&ssl=1",               coords:[40.8935,-73.9736],  location:"Englewood, NJ, USA",           country:"USA" },
+  { name:"Andréanne Leblanc",    team:"San Francisco", pos:"1B",      age:24, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/andreanne-leblanc-scaled.jpg?resize=160%2C160&quality=89&ssl=1",  coords:[45.5500,-73.3200],  location:"Mont-Saint-Hilaire, QC, Canada", country:"Canada" },
+  { name:"Jua Park",             team:"San Francisco", pos:"SS",      age:21, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/jua-park-scaled.jpg?resize=160%2C160&quality=89&ssl=1",           coords:[35.0561,127.7269],  location:"Hadong, South Korea",          country:"South Korea" },
+  { name:"Alexia Jorge",         team:"San Francisco", pos:"C",       age:22, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/alexia-jorge-scaled.jpg?resize=160%2C160&quality=89&ssl=1",       coords:[40.8218,-74.1050],  location:"Lyndhurst, NJ, USA",           country:"USA" },
+  { name:"Ela Day-Bédard",       team:"San Francisco", pos:"IF",      age:21, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Ela-Day-Bedard.jpg?resize=160%2C160&quality=89&ssl=1",            coords:[45.4765,-75.7013],  location:"Gatineau, QC, Canada",         country:"Canada" },
+  { name:"Rosi del Castillo",    team:"San Francisco", pos:"CF",      age:28, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Rosa-Maria-Del-Castillo.jpg?resize=160%2C160&quality=89&ssl=1",   coords:[19.0414,-98.2063],  location:"Puebla, Mexico",               country:"Mexico" },
+  { name:"Liz Gilder",           team:"San Francisco", pos:"LHP",     age:25, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/elizabeth-gilder-scaled.jpg?resize=160%2C160&quality=89&ssl=1",   coords:[49.2833,-122.8283], location:"Port Moody, BC, Canada",       country:"Canada" },
+  { name:"Skylar Kaplan",        team:"San Francisco", pos:"LF",      age:24, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/skylar-kaplan-scaled.jpg?resize=160%2C160&quality=89&ssl=1",      coords:[39.1754,-76.6122],  location:"Glen Burnie, MD, USA",         country:"USA" },
+  { name:"Hinano Beppu",         team:"San Francisco", pos:"2B",      age:30, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/hinano-beppu-scaled.jpg?resize=160%2C160&quality=89&ssl=1",       coords:[33.5204,130.5371],  location:"Nakagawa City, Japan",         country:"Japan" },
+  { name:"Jordan Eyster",        team:"San Francisco", pos:"CF",      age:21, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/jordan-eyster-scaled.jpg?resize=160%2C160&quality=89&ssl=1",      coords:[42.4895,-83.1446],  location:"Royal Oak, MI, USA",           country:"USA" },
+  { name:"Katie Reynolds",       team:"San Francisco", pos:"RHP",     age:24, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/katie-reynolds-scaled.jpg?resize=160%2C160&quality=89&ssl=1",     coords:[42.3654,-71.1733],  location:"Watertown, MA, USA",           country:"USA" },
+  { name:"Peyton Coria",         team:"San Francisco", pos:"RHP",     age:19, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/Peyton-Coria.jpg?resize=160%2C160&quality=89&ssl=1",             coords:[33.7825,-117.2281], location:"Perris, CA, USA",              country:"USA" },
+  { name:"Kaija Bazzano",        team:"San Francisco", pos:"SS",      age:23, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/kaija-bazzano-scaled.jpg?resize=160%2C160&quality=89&ssl=1",      coords:[38.4020,-122.8244], location:"Sebastopol, CA, USA",          country:"USA" },
+  { name:"Kaelei Kajitani",      team:"San Francisco", pos:"1B",      age:22, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/kaelei-kajitani-scaled.jpg?resize=160%2C160&quality=89&ssl=1",    coords:[36.9613,-120.0607], location:"Madera, CA, USA",              country:"USA" },
+  { name:"Kiley Ingram",         team:"San Francisco", pos:"RHP",     age:18, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/kiley-ingram-scaled.jpg?resize=160%2C160&quality=89&ssl=1",       coords:[34.0633,-117.6508], location:"Ontario, CA, USA",             country:"USA" },
+  { name:"Scrappy Hopkins",      team:"San Francisco", pos:"C",       age:27, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/scrappy-hopkins-scaled.jpg?resize=160%2C160&quality=89&ssl=1",    coords:[30.4213,-86.6186],  location:"Fort Walton Beach, FL, USA",   country:"USA" },
+  { name:"Flor Elena Valerio",   team:"San Francisco", pos:"RHP",     age:23, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/flor-elena-valerio-montoya-scaled.jpg?resize=160%2C160&quality=89&ssl=1", coords:[32.5149,-117.0382], location:"Tijuana, Mexico",             country:"Mexico" },
+  { name:"Estheoa Segovia",      team:"San Francisco", pos:"C",       age:31, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/esthela-segovia-scaled.jpg?resize=160%2C160&quality=89&ssl=1",    coords:[32.5149,-117.0382], location:"Tijuana, Mexico",              country:"Mexico" },
+  { name:"Bella Espinoza-Molina",team:"San Francisco", pos:"RF",      age:23, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/bella-espinoza-molina-scaled.jpg?resize=160%2C160&quality=89&ssl=1", coords:[33.5587,-117.6391], location:"Ladera Ranch, CA, USA",        country:"USA" },
+  { name:"Arwen McCullough",     team:"San Francisco", pos:"RHP",     age:22, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/arwen-mccullough-scaled.jpg?resize=160%2C160&quality=89&ssl=1",   coords:[37.6819,-121.7681], location:"Livermore, CA, USA",           country:"USA" },
+  { name:"Allie Lacey",          team:"San Francisco", pos:"2B",      age:32, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/allie-lacey-scaled.jpg?resize=160%2C160&quality=89&ssl=1",        coords:[34.2339,-118.2551], location:"La Crescenta, CA, USA",        country:"USA" },
+  { name:"Micaela Minner",       team:"San Francisco", pos:"1B",      age:40, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/micaela-minner-scaled.jpg?resize=160%2C160&quality=89&ssl=1",     coords:[41.0814,-81.5190],  location:"Akron, OH, USA",               country:"USA" },
+  { name:"Kailyn Bearpaw",       team:"San Francisco", pos:"1B",      age:22, photo:"https://i0.wp.com/www.womensprobaseballleague.com/wp-content/uploads/2025/09/kailyn-bearpaw-scaled.jpg?resize=160%2C160&quality=89&ssl=1",     coords:[35.9940,-96.1188],  location:"Sapulpa, OK, USA",             country:"USA" },
+];
+
+// ══════════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════════
+function posGroup(pos) {
+  if (!pos) return 'Other';
+  if (['RHP','LHP'].includes(pos)) return 'Pitcher';
+  if (pos === 'C') return 'Catcher';
+  if (['1B','2B','3B','SS','IF','UTL'].includes(pos)) return 'Infielder';
+  if (['LF','CF','RF','OF'].includes(pos)) return 'Outfielder';
+  return 'Other';
+}
+
+function avg(arr) {
+  const valid = arr.filter(v => v != null);
+  return valid.length ? (valid.reduce((a,b) => a+b, 0) / valid.length).toFixed(1) : '—';
+}
+
+// ══════════════════════════════════════════════════════════════
+// MAP
+// ══════════════════════════════════════════════════════════════
+function groupByCoords(players) {
+  const m = new Map();
+  players.forEach(p => {
+    const k = p.coords.join(',');
+    if (!m.has(k)) m.set(k, { location: p.location, coords: p.coords, players: [] });
+    m.get(k).players.push(p);
+  });
+  return m;
+}
+
+function pinColor(players) {
+  const teams = [...new Set(players.map(p => p.team))];
+  return teams.length > 1 ? '#c8a44a' : (TEAM_COLORS[teams[0]] || '#888');
+}
+
+const leafMap = L.map('map', { center:[22,10], zoom:2, minZoom:2, maxZoom:10 });
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(leafMap);
+
+let mapMarkers = [];
+
+function renderMarkers(filter) {
+  mapMarkers.forEach(m => leafMap.removeLayer(m));
+  mapMarkers = [];
+  const list = filter === 'all' ? PLAYERS : PLAYERS.filter(p => p.team === filter);
+  const groups = groupByCoords(list);
+  const countries = new Set(list.map(p => p.country));
+  document.getElementById('stat-players').textContent   = list.length;
+  document.getElementById('stat-countries').textContent = countries.size;
+  document.getElementById('stat-locations').textContent = groups.size;
+  document.getElementById('player-count').textContent   = `${list.length} players`;
+
+  groups.forEach(data => {
+    const n = data.players.length;
+    const color = pinColor(data.players);
+    const sz = n===1?'s1':n<=2?'s2':n<=5?'s3':'s4';
+    const icon = L.divIcon({
+      html:`<div class="pin-wrap"><div class="pin-dot ${sz}" style="background:${color}">${n>1?n:''}</div></div>`,
+      className:'', iconSize:[44,44], iconAnchor:[22,22]
+    });
+    mapMarkers.push(L.marker(data.coords,{icon}).addTo(leafMap).on('click',()=>openModal(data)));
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// MODAL
+// ══════════════════════════════════════════════════════════════
+function openModal(data) {
+  document.getElementById('modal-loc').textContent = data.location;
+  document.getElementById('modal-sub').textContent =
+    `${data.players.length} player${data.players.length!==1?'s':''} from this area`;
+  const grid = document.getElementById('player-grid');
+  grid.innerHTML = '';
+  data.players.forEach(p => {
+    const a = document.createElement('a');
+    a.className = 'p-card';
+    a.href = playerUrl(p.name); a.target='_blank'; a.rel='noopener noreferrer';
+    const c = TEAM_COLORS[p.team]||'#888';
+    a.innerHTML = `
+      <img class="p-photo" src="${p.photo}" alt="${p.name}" loading="lazy"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+      <div class="p-fallback">${p.name[0]}</div>
+      <div class="p-body" style="border-top-color:${c}">
+        <div class="p-name">${p.name}</div>
+        <div class="p-meta"><div class="p-dot" style="background:${c}"></div><span class="p-team">${p.team}</span></div>
+        ${p.pos?`<div class="p-pos">${p.pos}</div>`:''}
+      </div>`;
+    grid.appendChild(a);
+  });
+  document.getElementById('overlay').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+
+function closeModal() {
+  document.getElementById('overlay').classList.remove('open');
+  document.body.style.overflow='';
+}
+
+document.getElementById('modal-close').addEventListener('click', closeModal);
+document.getElementById('overlay').addEventListener('click', e => { if(e.target===document.getElementById('overlay')) closeModal(); });
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); });
+
+// ══════════════════════════════════════════════════════════════
+// FILTER BUTTONS (all sets synced)
+// ══════════════════════════════════════════════════════════════
+document.querySelectorAll('.team-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const team = btn.dataset.team;
+    document.querySelectorAll('.team-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll(`.team-btn[data-team="${team}"]`).forEach(b => b.classList.add('active'));
+    renderMarkers(team);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// TABS
+// ══════════════════════════════════════════════════════════════
+const headerFilter = document.getElementById('header-filter');
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById(`panel-${tab}`).classList.add('active');
+    // show/hide map filter in header
+    headerFilter.style.display = tab === 'map' ? 'flex' : 'none';
+    // invalidate map size when switching back
+    if (tab === 'map') setTimeout(() => leafMap.invalidateSize(), 50);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// CHART BUILDERS
+// ══════════════════════════════════════════════════════════════
+
+// ── Bar chart helper ──────────────────────────────────────────
+function buildBarChart(containerId, rows, maxVal) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  rows.forEach(r => {
+    const pct = maxVal ? (r.val / maxVal * 100) : 0;
+    const showInside = pct > 18;
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.innerHTML = `
+      <div class="bar-label ${r.labelClass||''}">${r.label}</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${pct}%;background:${r.color}">
+          ${showInside ? `<span class="bar-val">${r.val}${r.suffix||''}</span>` : ''}
+        </div>
+      </div>
+      ${!showInside ? `<div class="bar-val-out">${r.val}${r.suffix||''}</div>` : ''}
+    `;
+    el.appendChild(row);
+  });
+}
+
+// ── 1. Age dot plot ───────────────────────────────────────────
+function buildAgeDots() {
+  const withAge = PLAYERS.filter(p => p.age != null);
+  const minAge = Math.min(...withAge.map(p=>p.age));
+  const maxAge = Math.max(...withAge.map(p=>p.age));
+  const range = maxAge - minAge;
+
+  const rowsEl = document.getElementById('age-dot-rows');
+  rowsEl.innerHTML = '';
+
+  TEAMS.forEach(team => {
+    const players = withAge.filter(p => p.team === team);
+    const color = TEAM_COLORS[team];
+
+    const rowEl = document.createElement('div');
+    rowEl.className = 'dot-row';
+    rowEl.innerHTML = `<div class="dot-row-label">${team}</div><div class="dot-area" id="dot-area-${team.replace(/\s/g,'_')}"></div>`;
+    rowsEl.appendChild(rowEl);
+
+    // render dots after DOM insertion
+    requestAnimationFrame(() => {
+      const area = document.getElementById(`dot-area-${team.replace(/\s/g,'_')}`);
+      if (!area) return;
+      const areaW = area.offsetWidth || 400;
+
+      // stack dots at same age
+      const byAge = {};
+      players.forEach(p => {
+        byAge[p.age] = byAge[p.age] || [];
+        byAge[p.age].push(p);
+      });
+
+      Object.entries(byAge).forEach(([age, ps]) => {
+        ps.forEach((p, i) => {
+          const xPct = range > 0 ? ((age - minAge) / range) : 0.5;
+          const xPx = xPct * (areaW - 14); // leave margin
+          const dot = document.createElement('div');
+          dot.className = 'dot';
+          dot.style.left = `${xPx + i * 6}px`; // slight jitter for stacking
+          dot.style.background = color;
+          dot.innerHTML = `<div class="dot-tip">${p.name}, ${p.team} (${p.age})</div>`;
+          area.appendChild(dot);
+        });
+      });
+    });
+  });
+
+  // axis
+  const axisEl = document.getElementById('age-axis');
+  axisEl.innerHTML = '';
+  const step = 2;
+  const ticks = [];
+  for (let a = Math.floor(minAge/step)*step; a <= maxAge; a += step) ticks.push(a);
+  ticks.forEach(a => {
+    const lbl = document.createElement('div');
+    lbl.className = 'dot-axis-label';
+    lbl.textContent = a;
+    axisEl.appendChild(lbl);
+  });
+
+  // summary pills
+  const pillsEl = document.getElementById('age-pills');
+  pillsEl.innerHTML = '';
+  TEAMS.forEach(team => {
+    const ages = PLAYERS.filter(p=>p.team===team && p.age).map(p=>p.age);
+    const pill = document.createElement('div');
+    pill.className = 'pill';
+    pill.style.background = TEAM_COLORS[team];
+    pill.innerHTML = `<span>${team}</span><span class="pill-num">avg ${avg(ages)}</span>`;
+    pillsEl.appendChild(pill);
+  });
+  const allAges = PLAYERS.filter(p=>p.age).map(p=>p.age);
+  const overall = document.createElement('div');
+  overall.className = 'pill';
+  overall.style.background = '#888';
+  overall.innerHTML = `<span>League</span><span class="pill-num">avg ${avg(allAges)}</span>`;
+  pillsEl.appendChild(overall);
+}
+
+// ── 2. Position breakdown ─────────────────────────────────────
+function buildPositionChart() {
+  const groups = ['Pitcher','Catcher','Infielder','Outfielder','Other'];
+  const colors = { Pitcher:'#c8a44a', Catcher:'#268040', Infielder:'#475da9', Outfielder:'#299598', Other:'#aaa' };
+  const counts = {};
+  groups.forEach(g => counts[g] = 0);
+  PLAYERS.forEach(p => counts[posGroup(p.pos)]++);
+  const max = Math.max(...Object.values(counts));
+  buildBarChart('pos-chart',
+    groups.map(g => ({ label:g, val:counts[g], color:colors[g] })),
+    max
+  );
+}
+
+// ── 3. Pitchers vs position players by team ───────────────────
+function buildPitcherChart() {
+  const rows = [];
+  TEAMS.forEach(team => {
+    const tp = PLAYERS.filter(p => p.team === team);
+    const pitchers = tp.filter(p => ['RHP','LHP'].includes(p.pos)).length;
+    const pos = tp.length - pitchers;
+    rows.push({ label:team, val:pitchers, total:tp.length, color:TEAM_COLORS[team], labelClass:'short' });
+    rows.push({ label:'', val:pos, total:tp.length, color:TEAM_COLORS[team]+'88', suffix:' pos', labelClass:'short' });
+  });
+
+  const el = document.getElementById('pitcher-chart');
+  el.innerHTML = '';
+  const max = Math.max(...rows.map(r=>r.val));
+
+  TEAMS.forEach(team => {
+    const tp = PLAYERS.filter(p=>p.team===team);
+    const pitchers = tp.filter(p=>['RHP','LHP'].includes(p.pos)).length;
+    const posp = tp.length - pitchers;
+    const pPct = pitchers/tp.length*100;
+    const rPct = posp/tp.length*100;
+
+    const teamRow = document.createElement('div');
+    teamRow.style.marginBottom = '10px';
+    teamRow.innerHTML = `
+      <div class="bar-row" style="margin-bottom:3px">
+        <div class="bar-label short" style="font-size:10px;font-weight:600">${team}</div>
+        <div style="flex:1;display:flex;border-radius:3px;overflow:hidden;height:20px">
+          <div style="width:${pPct}%;background:${TEAM_COLORS[team]};display:flex;align-items:center;padding:0 5px">
+            <span style="font-size:9px;color:#fff;font-weight:600;white-space:nowrap">${pitchers} P</span>
+          </div>
+          <div style="width:${rPct}%;background:${TEAM_COLORS[team]}55;display:flex;align-items:center;padding:0 5px">
+            <span style="font-size:9px;color:#444;font-weight:600;white-space:nowrap">${posp} pos</span>
+          </div>
+        </div>
+      </div>`;
+    el.appendChild(teamRow);
+  });
+}
+
+// ── 4. Country grid ───────────────────────────────────────────
+function buildCountryGrid() {
+  const countryCount = {};
+  const countryTeams = {};
+  PLAYERS.forEach(p => {
+    countryCount[p.country] = (countryCount[p.country]||0) + 1;
+    countryTeams[p.country] = countryTeams[p.country] || {};
+    countryTeams[p.country][p.team] = (countryTeams[p.country][p.team]||0) + 1;
+  });
+
+  // sort by count
+  const sorted = Object.entries(countryCount).sort((a,b)=>b[1]-a[1]);
+  const maxCount = sorted[0][1];
+
+  const el = document.getElementById('country-grid');
+  el.innerHTML = '';
+
+  sorted.forEach(([country, count]) => {
+    // dominant team color
+    const teamCounts = countryTeams[country];
+    const dominantTeam = Object.entries(teamCounts).sort((a,b)=>b[1]-a[1])[0][0];
+    const color = TEAM_COLORS[dominantTeam];
+
+    const size = Math.round(28 + (count / maxCount) * 48); // 28-76px
+
+    const item = document.createElement('div');
+    item.className = 'country-item';
+    item.innerHTML = `
+      <div class="country-block" style="width:${size}px;height:${size}px;background:${color};font-size:${Math.max(10,size*0.28)}px">
+        ${count}
+      </div>
+      <div class="country-name">${country}</div>`;
+    el.appendChild(item);
+  });
+}
+
+// ── 5. USA vs International by team ──────────────────────────
+function buildIntlChart() {
+  const rows = [];
+  TEAMS.forEach(team => {
+    const tp = PLAYERS.filter(p=>p.team===team);
+    const intl = tp.filter(p=>p.country!=='USA').length;
+    const pct = Math.round(intl/tp.length*100);
+    rows.push({ label:team, val:intl, pct, total:tp.length, color:TEAM_COLORS[team], labelClass:'short' });
+  });
+
+  const el = document.getElementById('intl-chart');
+  el.innerHTML = '';
+  const max = Math.max(...rows.map(r=>r.val));
+
+  rows.forEach(r => {
+    const pct = r.val / max * 100;
+    const showInside = pct > 20;
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.innerHTML = `
+      <div class="bar-label short">${r.label}</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${pct}%;background:${r.color}">
+          ${showInside?`<span class="bar-val">${r.val} (${r.pct}%)</span>`:''}
+        </div>
+      </div>
+      ${!showInside?`<div class="bar-val-out">${r.val} (${r.pct}%)</div>`:''}`;
+    el.appendChild(row);
+  });
+}
+
+// ── 6. Avg age by position group ──────────────────────────────
+function buildAgePosChart() {
+  const groups = ['Pitcher','Catcher','Infielder','Outfielder'];
+  const colors = { Pitcher:'#c8a44a', Catcher:'#268040', Infielder:'#475da9', Outfielder:'#299598' };
+  const avgAges = groups.map(g => {
+    const ages = PLAYERS.filter(p=>posGroup(p.pos)===g && p.age!=null).map(p=>p.age);
+    return { label:g, val:parseFloat(avg(ages)), color:colors[g] };
+  });
+  const max = Math.max(...avgAges.map(r=>r.val));
+  buildBarChart('age-pos-chart',
+    avgAges.map(r => ({ ...r, val:r.val, suffix:' yrs' })),
+    max
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════
+renderMarkers('all');
+buildAgeDots();
+buildPositionChart();
+buildPitcherChart();
+buildCountryGrid();
+buildIntlChart();
+buildAgePosChart();
+</script>
+</body>
+</html>
