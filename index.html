@@ -3,43 +3,608 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Peace</title>
+  <title>Peace — Box Breathing</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=Dancing+Script:wght@500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&family=Pacifico&display=swap" rel="stylesheet">
+    :root {
+      --sage: #8BAF8A;
+      --sage-light: #B8D1B6;
+      --sage-pale: #EEF5ED;
+      --lavender: #A89BC2;
+      --lavender-light: #C9C0DC;
+      --lavender-pale: #F0EEF7;
+      --sky: #89B4C9;
+      --sky-light: #B6D3E2;
+      --peach: #D4A89A;
+      --peach-light: #E8C9C1;
+      --cream: #FAF7F2;
+      --text-dark: #3D3530;
+      --text-mid: #7A6E68;
+      --text-light: #AFA8A2;
+    }
 
-  <link rel="stylesheet" href="styles.css" />
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: 'Cormorant Garamond', serif;
+      background: var(--cream);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      position: relative;
+      transition: background 1.5s ease;
+      touch-action: manipulation;
+    }
+
+    /* ─── Flower Garden Layer ─── */
+    #garden {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 0;
+    }
+
+    .flower {
+      position: absolute;
+      transform-origin: 50% 100%;
+      animation: grow-flower 2.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+      opacity: 0;
+    }
+
+    @keyframes grow-flower {
+      0%   { opacity: 0; transform: scale(0) translateY(20px); }
+      20%  { opacity: 1; }
+      70%  { transform: scale(1.05) translateY(-3px); }
+      100% { opacity: 0.75; transform: scale(1) translateY(0); }
+    }
+
+    .flower-fade { animation: flower-fade 2s ease forwards; }
+    @keyframes flower-fade {
+      from { opacity: 0.75; }
+      to   { opacity: 0; transform: scale(0.85) translateY(10px); }
+    }
+
+    /* ─── Floating Orbs (ambient) ─── */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 0;
+      animation: float-orb linear infinite;
+      opacity: 0.18;
+    }
+    @keyframes float-orb {
+      0%   { transform: translateY(0) translateX(0); }
+      33%  { transform: translateY(-30px) translateX(15px); }
+      66%  { transform: translateY(-15px) translateX(-10px); }
+      100% { transform: translateY(0) translateX(0); }
+    }
+
+    /* ─── Main Card ─── */
+    #app {
+      position: relative;
+      z-index: 10;
+      text-align: center;
+      padding: 2.5rem 2rem 2.5rem;
+      max-width: 520px;
+      width: 90vw;
+      user-select: none;
+    }
+
+    /* ─── PEACE Title ─── */
+    #peace-title {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(4rem, 14vw, 7rem);
+      font-weight: 700;
+      color: var(--text-dark);
+      letter-spacing: 0.12em;
+      line-height: 1;
+      cursor: default;
+      display: inline-block;
+      position: relative;
+      transition: color 0.4s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #peace-title::after {
+      content: '';
+      position: absolute;
+      bottom: -6px;
+      left: 10%;
+      width: 80%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--lavender), transparent);
+      opacity: 0.5;
+    }
+
+    #peace-title.hovered { color: var(--sage); }
+
+    /* ─── Tagline ─── */
+    .tagline {
+      font-family: 'Dancing Script', cursive;
+      font-size: clamp(1rem, 3vw, 1.3rem);
+      color: var(--text-light);
+      margin-top: 0.6rem;
+      letter-spacing: 0.04em;
+      opacity: 0;
+      animation: fade-up 1s 0.4s ease forwards;
+    }
+
+    @keyframes fade-up {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ─── Breathing Circle ─── */
+    #circle-wrap {
+      margin: 2.5rem auto 0;
+      position: relative;
+      width: clamp(180px, 50vw, 240px);
+      height: clamp(180px, 50vw, 240px);
+    }
+
+    #breath-ring {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 2.5px solid var(--lavender-light);
+      position: absolute;
+      inset: 0;
+      transition: border-color 1s ease;
+    }
+
+    #breath-circle {
+      width: 65%;
+      height: 65%;
+      border-radius: 50%;
+      background: radial-gradient(circle at 38% 36%, var(--lavender-pale), var(--lavender-light));
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(1);
+      transition: transform 4s ease-in-out, background 1.5s ease;
+      box-shadow: 0 0 0 0 rgba(168, 155, 194, 0.3);
+    }
+
+    /* ─── Phase-specific colors ─── */
+    body.phase-in   #breath-circle { background: radial-gradient(circle at 38% 36%, #D1E8CF, #A8CAA6); }
+    body.phase-hold1 #breath-circle { background: radial-gradient(circle at 38% 36%, var(--lavender-pale), var(--lavender-light)); }
+    body.phase-out  #breath-circle { background: radial-gradient(circle at 38% 36%, var(--sky-light), var(--sky)); opacity: 0.85; }
+    body.phase-hold2 #breath-circle { background: radial-gradient(circle at 38% 36%, var(--peach-light), var(--peach)); }
+
+    body.phase-in    #breath-circle { transform: translate(-50%, -50%) scale(1.38); }
+    body.phase-hold1 #breath-circle { transform: translate(-50%, -50%) scale(1.38); }
+    body.phase-out   #breath-circle { transform: translate(-50%, -50%) scale(0.75); }
+    body.phase-hold2 #breath-circle { transform: translate(-50%, -50%) scale(0.75); }
+
+    /* Pulse ring on hold */
+    body.phase-hold1 #breath-ring,
+    body.phase-hold2 #breath-ring { animation: ring-pulse 2s ease-in-out infinite; }
+    @keyframes ring-pulse {
+      0%,100% { transform: scale(1); opacity: 1; }
+      50%      { transform: scale(1.06); opacity: 0.5; }
+    }
+
+    /* ─── Phase Label ─── */
+    #phase-label {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: 'Dancing Script', cursive;
+      font-size: clamp(0.95rem, 3vw, 1.15rem);
+      color: var(--text-dark);
+      opacity: 0;
+      pointer-events: none;
+      white-space: nowrap;
+      transition: opacity 0.4s ease;
+    }
+    #phase-label.visible { opacity: 1; }
+
+    /* ─── Timer Arc SVG ─── */
+    #timer-svg {
+      position: absolute;
+      inset: -12px;
+      width: calc(100% + 24px);
+      height: calc(100% + 24px);
+      transform: rotate(-90deg);
+      pointer-events: none;
+    }
+
+    #timer-arc {
+      fill: none;
+      stroke: var(--sage-light);
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-dasharray: 314;
+      stroke-dashoffset: 314;
+      transition: stroke 0.8s ease;
+    }
+
+    /* ─── Countdown Number ─── */
+    #countdown {
+      position: absolute;
+      bottom: -2.2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.3rem;
+      color: var(--text-mid);
+      min-width: 1.5rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    #countdown.visible { opacity: 1; }
+
+    /* ─── Progress Dots ─── */
+    #progress {
+      display: flex;
+      gap: 0.55rem;
+      justify-content: center;
+      margin-top: 3rem;
+      opacity: 0;
+      animation: fade-up 1s 0.7s ease forwards;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--lavender-light);
+      transition: background 0.5s ease, transform 0.3s ease;
+    }
+    .dot.active {
+      background: var(--lavender);
+      transform: scale(1.3);
+    }
+    .dot[data-phase="0"] { background: var(--sage-light); }
+    .dot[data-phase="0"].active { background: var(--sage); }
+    .dot[data-phase="2"] { background: var(--sky-light); }
+    .dot[data-phase="2"].active { background: var(--sky); }
+    .dot[data-phase="3"] { background: var(--peach-light); }
+    .dot[data-phase="3"].active { background: var(--peach); }
+
+    /* ─── Start / Pause Button ─── */
+    #ctrl-btn {
+      margin-top: 2rem;
+      padding: 0.7rem 2.4rem;
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.05rem;
+      letter-spacing: 0.1em;
+      color: var(--text-dark);
+      background: transparent;
+      border: 1.5px solid var(--lavender);
+      border-radius: 2rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      opacity: 0;
+      animation: fade-up 1s 1s ease forwards;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    #ctrl-btn:hover, #ctrl-btn:active {
+      background: var(--lavender-pale);
+      border-color: var(--lavender);
+      transform: scale(1.04);
+    }
+
+    /* ─── Cycle Counter ─── */
+    #cycle-info {
+      font-family: 'Dancing Script', cursive;
+      font-size: 0.9rem;
+      color: var(--text-light);
+      margin-top: 1rem;
+      height: 1.2em;
+      opacity: 0;
+      transition: opacity 0.5s;
+    }
+    #cycle-info.visible { opacity: 1; }
+
+    /* ─── Mobile touch hint ─── */
+    #touch-hint {
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 0.8rem;
+      color: var(--text-light);
+      margin-top: 0.5rem;
+      opacity: 0;
+      animation: fade-up 1s 1.4s ease forwards;
+    }
+
+    /* ─── Ambient background shift ─── */
+    body.phase-in    { background: #EFF5EE; }
+    body.phase-hold1 { background: var(--cream); }
+    body.phase-out   { background: #EEF3F7; }
+    body.phase-hold2 { background: #F8F1EE; }
+
+    /* ─── Mobile tweaks ─── */
+    @media (max-width: 480px) {
+      #app { padding: 1.5rem 1rem 2rem; }
+      #ctrl-btn { padding: 0.65rem 2rem; }
+    }
+
+    @media (hover: none) {
+      #touch-hint { display: none; }
+    }
+
+  </style>
 </head>
 <body>
 
-  <div class="background-glow"></div>
-  <div class="flowers" id="flowers"></div>
+  <div id="garden"></div>
 
-  <main class="container">
+  <!-- Ambient orbs -->
+  <div class="orb" style="width:320px;height:320px;background:#B8D1B6;top:-80px;left:-80px;animation-duration:18s;"></div>
+  <div class="orb" style="width:250px;height:250px;background:#C9C0DC;bottom:-60px;right:-60px;animation-duration:22s;animation-delay:-7s;"></div>
+  <div class="orb" style="width:180px;height:180px;background:#B6D3E2;bottom:15%;left:5%;animation-duration:15s;animation-delay:-3s;"></div>
 
-    <div class="top-text">
-      breathe slowly.
+  <div id="app">
+    <h1 id="peace-title">PEACE</h1>
+    <p class="tagline">a moment just for you</p>
+
+    <div id="circle-wrap">
+      <svg id="timer-svg" viewBox="0 0 136 136">
+        <circle id="timer-arc" cx="68" cy="68" r="50" />
+      </svg>
+      <div id="breath-ring"></div>
+      <div id="breath-circle"></div>
+      <div id="phase-label"></div>
+      <div id="countdown"></div>
     </div>
 
-    <h1 id="peaceWord">Peace</h1>
-
-    <div class="circle-wrapper">
-      <div class="breathing-circle" id="breathingCircle">
-        <div class="phase-text" id="phaseText">Tap to Begin</div>
-      </div>
+    <div id="progress">
+      <div class="dot" data-phase="0" title="Breathe In"></div>
+      <div class="dot" data-phase="1" title="Hold"></div>
+      <div class="dot" data-phase="2" title="Breathe Out"></div>
+      <div class="dot" data-phase="3" title="Hold"></div>
     </div>
 
-    <div class="timer" id="timer">4</div>
+    <button id="ctrl-btn">begin</button>
+    <div id="cycle-info"></div>
+    <p id="touch-hint">tap "PEACE" to bloom flowers</p>
+  </div>
 
-    <button id="startButton">Start Breathing</button>
+<script>
+/* ─── State ─── */
+const PHASES = [
+  { name: 'breathe in',  duration: 4, cls: 'phase-in' },
+  { name: 'hold',        duration: 4, cls: 'phase-hold1' },
+  { name: 'breathe out', duration: 4, cls: 'phase-out' },
+  { name: 'hold',        duration: 4, cls: 'phase-hold2' },
+];
 
-    <div class="instructions">
-      Box breathing • Inhale 4 • Hold 4 • Exhale 4 • Hold 4
-    </div>
+let running = false;
+let phaseIdx = 0;
+let elapsed = 0;        // seconds elapsed in current phase
+let cycles = 0;
+let tickInterval = null;
+let arcInterval = null;
 
-  </main>
+const body        = document.body;
+const phaseLabel  = document.getElementById('phase-label');
+const countdown   = document.getElementById('countdown');
+const ctrlBtn     = document.getElementById('ctrl-btn');
+const cycleInfo   = document.getElementById('cycle-info');
+const dots        = document.querySelectorAll('.dot');
+const timerArc    = document.getElementById('timer-arc');
+const peaceTitle  = document.getElementById('peace-title');
+const garden      = document.getElementById('garden');
 
-  <script src="script.js"></script>
+const CIRCUMFERENCE = 314; // 2π × 50
+
+/* ─── Flower SVGs ─── */
+const FLOWER_TEMPLATES = [
+  (c1, c2) => `<svg viewBox="0 0 60 80" xmlns="http://www.w3.org/2000/svg">
+    <line x1="30" y1="75" x2="30" y2="35" stroke="#8BAF8A" stroke-width="2.5" stroke-linecap="round"/>
+    <ellipse cx="18" cy="52" rx="9" ry="5" fill="#A8CAA6" opacity="0.8" transform="rotate(-30 18 52)"/>
+    <ellipse cx="42" cy="48" rx="9" ry="5" fill="#B8D1B6" opacity="0.8" transform="rotate(30 42 48)"/>
+    <circle cx="30" cy="32" r="7" fill="${c1}" opacity="0.9"/>
+    <circle cx="30" cy="22" r="5" fill="${c1}"/>
+    <circle cx="21" cy="27" r="5" fill="${c1}"/>
+    <circle cx="39" cy="27" r="5" fill="${c1}"/>
+    <circle cx="21" cy="37" r="5" fill="${c1}"/>
+    <circle cx="39" cy="37" r="5" fill="${c1}"/>
+    <circle cx="30" cy="42" r="5" fill="${c1}"/>
+    <circle cx="30" cy="32" r="5" fill="${c2}"/>
+  </svg>`,
+
+  (c1, c2) => `<svg viewBox="0 0 60 85" xmlns="http://www.w3.org/2000/svg">
+    <path d="M30 80 Q28 60 30 40 Q32 60 30 80" fill="#8BAF8A"/>
+    <path d="M30 65 Q20 60 22 50 Q28 58 30 65" fill="#A8CAA6" opacity="0.8"/>
+    <path d="M30 65 Q40 60 38 50 Q32 58 30 65" fill="#A8CAA6" opacity="0.8"/>
+    ${[0,60,120,180,240,300].map(a => `<ellipse cx="30" cy="22" rx="5" ry="12" fill="${c1}" opacity="0.85" transform="rotate(${a} 30 35)"/>`).join('')}
+    <circle cx="30" cy="35" r="7" fill="${c2}"/>
+    <circle cx="30" cy="35" r="4" fill="${c1}" opacity="0.6"/>
+  </svg>`,
+
+  (c1, c2) => `<svg viewBox="0 0 60 80" xmlns="http://www.w3.org/2000/svg">
+    <path d="M30 78 C30 60 28 50 30 38" stroke="#8BAF8A" stroke-width="2" fill="none" stroke-linecap="round"/>
+    ${[0,45,90,135,180,225,270,315].map(a => `<ellipse cx="30" cy="25" rx="4" ry="11" fill="${c1}" opacity="0.8" transform="rotate(${a} 30 35)"/>`).join('')}
+    <circle cx="30" cy="35" r="6" fill="${c2}"/>
+    <circle cx="30" cy="35" r="3" fill="white" opacity="0.6"/>
+  </svg>`,
+
+  (c1, c2) => `<svg viewBox="0 0 55 80" xmlns="http://www.w3.org/2000/svg">
+    <path d="M27 78 C27 60 25 48 27 36" stroke="#8BAF8A" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M27 55 C15 50 10 38 18 32 C22 42 25 50 27 55Z" fill="#A8CAA6" opacity="0.9"/>
+    <path d="M27 55 C39 50 44 38 36 32 C32 42 29 50 27 55Z" fill="#B8D1B6" opacity="0.9"/>
+    ${[0,72,144,216,288].map(a => `<ellipse cx="27" cy="22" rx="5" ry="13" fill="${c1}" opacity="0.82" transform="rotate(${a} 27 34)"/>`).join('')}
+    <circle cx="27" cy="34" r="7" fill="${c2}"/>
+    <circle cx="27" cy="34" r="3.5" fill="white" opacity="0.5"/>
+  </svg>`,
+];
+
+const FLOWER_COLORS = [
+  ['#D4A89A', '#E8C9C1'],
+  ['#A89BC2', '#C9C0DC'],
+  ['#89B4C9', '#B6D3E2'],
+  ['#8BAF8A', '#B8D1B6'],
+  ['#E8B4C1', '#F3D0D7'],
+  ['#B5CCA9', '#D0E2CA'],
+  ['#C4A8C9', '#DBC0DC'],
+  ['#A8C4D4', '#C2D8E5'],
+];
+
+let flowerCount = 0;
+let isTouching = false;
+
+function spawnFlower(x, y) {
+  const fc = FLOWER_COLORS[Math.floor(Math.random() * FLOWER_COLORS.length)];
+  const tpl = FLOWER_TEMPLATES[Math.floor(Math.random() * FLOWER_TEMPLATES.length)];
+  const svg = tpl(fc[0], fc[1]);
+
+  const el = document.createElement('div');
+  el.className = 'flower';
+  const size = 40 + Math.random() * 60;
+  el.style.cssText = `
+    width:${size}px;height:${size * 1.3}px;
+    left:${x - size/2 + (Math.random()-0.5)*80}px;
+    top:${y - size*1.3 + (Math.random()-0.5)*40}px;
+    animation-delay:${Math.random()*0.3}s;
+    animation-duration:${2 + Math.random()*1.2}s;
+  `;
+  el.innerHTML = svg;
+  garden.appendChild(el);
+  flowerCount++;
+
+  // Fade out after 6s
+  setTimeout(() => {
+    el.classList.add('flower-fade');
+    setTimeout(() => { el.remove(); flowerCount--; }, 2000);
+  }, 5000 + Math.random() * 3000);
+}
+
+function bloomBurst(cx, cy, count = 7) {
+  for (let i = 0; i < count; i++) {
+    setTimeout(() => spawnFlower(cx, cy), i * 80);
+  }
+}
+
+/* Peace title interactions */
+function getTitleCenter() {
+  const r = peaceTitle.getBoundingClientRect();
+  return { x: r.left + r.width/2, y: r.top + r.height/2 };
+}
+
+// Desktop hover
+let hoverInterval = null;
+peaceTitle.addEventListener('mouseenter', () => {
+  peaceTitle.classList.add('hovered');
+  const c = getTitleCenter();
+  bloomBurst(c.x, c.y, 8);
+  hoverInterval = setInterval(() => {
+    const c2 = getTitleCenter();
+    spawnFlower(c2.x + (Math.random()-0.5)*200, c2.y + (Math.random()-0.5)*100);
+  }, 400);
+});
+peaceTitle.addEventListener('mouseleave', () => {
+  peaceTitle.classList.remove('hovered');
+  clearInterval(hoverInterval);
+});
+
+// Mobile tap
+peaceTitle.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  peaceTitle.classList.add('hovered');
+  const t = e.touches[0];
+  bloomBurst(t.clientX, t.clientY, 9);
+  isTouching = true;
+}, { passive: false });
+peaceTitle.addEventListener('touchend', () => {
+  peaceTitle.classList.remove('hovered');
+  isTouching = false;
+});
+
+/* ─── Breathing Engine ─── */
+function setPhase(idx) {
+  PHASES.forEach(p => body.classList.remove(p.cls));
+  body.classList.add(PHASES[idx].cls);
+  dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+  phaseLabel.textContent = PHASES[idx].name;
+  phaseLabel.classList.add('visible');
+  timerArc.style.stroke = ['#8BAF8A','#A89BC2','#89B4C9','#D4A89A'][idx];
+}
+
+function updateArc(sec, total) {
+  const pct = sec / total;
+  const offset = CIRCUMFERENCE * (1 - pct);
+  timerArc.style.strokeDashoffset = offset;
+}
+
+function startBreathing() {
+  elapsed = 0;
+  setPhase(phaseIdx);
+  updateArc(0, PHASES[phaseIdx].duration);
+  countdown.textContent = PHASES[phaseIdx].duration;
+  countdown.classList.add('visible');
+
+  tickInterval = setInterval(() => {
+    elapsed += 0.05;
+    const total = PHASES[phaseIdx].duration;
+    const remaining = Math.max(0, Math.ceil(total - elapsed));
+    countdown.textContent = remaining;
+    updateArc(elapsed, total);
+
+    if (elapsed >= total) {
+      elapsed = 0;
+      phaseIdx = (phaseIdx + 1) % 4;
+      if (phaseIdx === 0) {
+        cycles++;
+        cycleInfo.textContent = `cycle ${cycles} complete`;
+        cycleInfo.classList.add('visible');
+      }
+      setPhase(phaseIdx);
+    }
+  }, 50);
+}
+
+function stopBreathing() {
+  clearInterval(tickInterval);
+  PHASES.forEach(p => body.classList.remove(p.cls));
+  phaseLabel.classList.remove('visible');
+  countdown.classList.remove('visible');
+  timerArc.style.strokeDashoffset = CIRCUMFERENCE;
+  dots.forEach(d => d.classList.remove('active'));
+}
+
+ctrlBtn.addEventListener('click', () => {
+  running = !running;
+  if (running) {
+    phaseIdx = 0;
+    elapsed = 0;
+    ctrlBtn.textContent = 'pause';
+    cycleInfo.classList.remove('visible');
+    startBreathing();
+  } else {
+    ctrlBtn.textContent = 'resume';
+    stopBreathing();
+  }
+});
+
+// Also allow tapping anywhere on the breathing circle to toggle
+document.getElementById('circle-wrap').addEventListener('click', () => {
+  ctrlBtn.click();
+});
+
+/* ─── Occasional ambient flowers when running ─── */
+setInterval(() => {
+  if (running && flowerCount < 25) {
+    const x = Math.random() * window.innerWidth;
+    const y = window.innerHeight * 0.3 + Math.random() * window.innerHeight * 0.5;
+    spawnFlower(x, y);
+  }
+}, 3500);
+
+/* ─── Init arc ─── */
+timerArc.style.strokeDasharray = CIRCUMFERENCE;
+timerArc.style.strokeDashoffset = CIRCUMFERENCE;
+</script>
 </body>
 </html>
